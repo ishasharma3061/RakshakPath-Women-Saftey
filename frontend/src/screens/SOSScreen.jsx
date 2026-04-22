@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import emailjs from '@emailjs/browser';
+import { sendSOS } from '../api';
+
+emailjs.init("ZNNuLKc75zgQzIz56");
 
 const SOSScreen = ({ onNavigate }) => {
   const [location, setLocation] = useState(null);
@@ -6,6 +10,89 @@ const SOSScreen = ({ onNavigate }) => {
   const [isCounting, setIsCounting] = useState(false);
   const [alertSent, setAlertSent] = useState(false);
   const [timestamp, setTimestamp] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [isSilentMode, setIsSilentMode] = useState(false);
+
+  const triggerEmergency = (silent = false) => {
+    setIsCounting(false);
+    if (silent) setIsSilentMode(true);
+    
+    setTimestamp(new Date().toLocaleTimeString());
+    
+    const templateParams = {
+      to_email: "kjindal509@gmail.com",
+      user_name: "RAKSHAKPATH User",
+      location: location ? `${location.lat}, ${location.lng}` : "Location not available",
+      latitude: location ? location.lat : "Unknown",
+      longitude: location ? location.lng : "Unknown",
+      time: new Date().toLocaleString()
+    };
+
+    // Call Backend API
+    sendSOS({
+      latitude: templateParams.latitude,
+      longitude: templateParams.longitude,
+      location: templateParams.location,
+      time: templateParams.time,
+      user_name: templateParams.user_name
+    }).catch(err => console.error("Database SOS Error:", err));
+
+    emailjs.send(
+      "service_889jh7p",
+      "template_g6yj90n",
+      templateParams
+    ).then(
+      (response) => {
+        console.log('SUCCESS!', response.status, response.text);
+        setAlertSent(true);
+        if (!silent) setEmailError('');
+      },
+      (error) => {
+        console.log('FAILED...', error);
+        if (!silent) setEmailError('Failed to send email alert. Please contact emergency directly.');
+      }
+    );
+  };
+
+  // 1. Voice Trigger SOS Listener
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return; // Browser doesn't support it
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event) => {
+      const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
+      if (transcript.includes('help') || transcript.includes('bachao') || transcript.includes('danger') || transcript.includes('emergency')) {
+        setIsCounting(prev => {
+          if (!prev && !alertSent) {
+            setCountdown(5);
+            return true;
+          }
+          return prev;
+        });
+      }
+    };
+    
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+
+    try {
+      recognition.start();
+    } catch (e) {
+      console.log("Failed to start voice recognition", e);
+    }
+
+    return () => {
+      try {
+        recognition.stop();
+      } catch (e) {}
+    };
+  }, [alertSent]);
 
   // 1. Fetch GPS Location on Mount
   useEffect(() => {
@@ -27,12 +114,10 @@ const SOSScreen = ({ onNavigate }) => {
         setCountdown((prev) => prev - 1);
       }, 1000);
     } else if (isCounting && countdown === 0) {
-      setIsCounting(false);
-      setAlertSent(true);
-      setTimestamp(new Date().toLocaleTimeString());
+      triggerEmergency(false);
     }
     return () => clearInterval(timer);
-  }, [isCounting, countdown]);
+  }, [isCounting, countdown, location]);
 
   const handleSOSClick = () => {
     if (!isCounting && !alertSent) {
@@ -50,6 +135,7 @@ const SOSScreen = ({ onNavigate }) => {
     setAlertSent(false);
     setIsCounting(false);
     setCountdown(5);
+    setEmailError('');
     onNavigate('home');
   };
 
@@ -325,6 +411,16 @@ const SOSScreen = ({ onNavigate }) => {
     }
   };
 
+  if (isSilentMode) {
+    return (
+      <div 
+        style={{ backgroundColor: '#000', height: '100vh', width: '100%', display: 'flex', flexDirection: 'column' }} 
+        onClick={() => setIsSilentMode(false)}
+      >
+      </div>
+    );
+  }
+
   return (
     <>
       <style>
@@ -342,6 +438,11 @@ const SOSScreen = ({ onNavigate }) => {
             0% { transform: scale(1); box-shadow: 0 0 20px rgba(230,57,70,0.4); }
             50% { transform: scale(1.05); box-shadow: 0 0 50px rgba(230,57,70,0.8); }
             100% { transform: scale(1); box-shadow: 0 0 20px rgba(230,57,70,0.4); }
+          }
+          @keyframes pulseMic {
+            0% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+            100% { opacity: 0.5; transform: scale(1); }
           }
         `}
       </style>
@@ -372,18 +473,33 @@ const SOSScreen = ({ onNavigate }) => {
             {/* ACTION AREA (Default / Countdown / Success) */}
             <div style={styles.actionArea}>
               
-              {!isCounting && !alertSent && (
+              {!isCounting && !alertSent && !emailError && (
                 <>
                   <div style={styles.sosButtonContainer}>
                     <button style={styles.sosButton} onClick={handleSOSClick}>
                       <span style={styles.sosText}>SOS</span>
                     </button>
                   </div>
-                  <div style={styles.pulseText}>Press in emergency</div>
+                  <div style={styles.pulseText}>Press directly or speak in emergency</div>
+                  {isListening && (
+                    <div style={{ marginTop: '16px', color: '#2DC653', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                      <span style={{ animation: 'pulseMic 1.5s infinite' }}>🎙️</span> Listening for "Help" or "Bachao"...
+                    </div>
+                  )}
+
+                  <button 
+                    style={{
+                      marginTop: '30px', backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.1)', 
+                      color: '#8888AA', padding: '12px 24px', borderRadius: '8px', fontSize: '14px', cursor: 'pointer'
+                    }}
+                    onClick={() => triggerEmergency(true)}
+                  >
+                    🥷 Use Silent SOS (No countdown)
+                  </button>
                 </>
               )}
 
-              {isCounting && !alertSent && (
+              {isCounting && !alertSent && !emailError && (
                 <>
                   <div style={styles.countNum}>{countdown}</div>
                   <div style={styles.pulseText}>Sending alert in {countdown} seconds...</div>
@@ -391,13 +507,23 @@ const SOSScreen = ({ onNavigate }) => {
                 </>
               )}
 
-              {alertSent && (
+              {(alertSent || emailError) && (
                 <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-                  <div style={styles.successIcon}>✅</div>
-                  <h2 style={styles.successTitle}>Alert Sent!</h2>
-                  <p style={styles.successDesc}>Your location has been shared with 2 contacts</p>
-                  {location && <p style={styles.successInfo}>Location: {location.lat}, {location.lng}</p>}
-                  <p style={styles.successInfo}>Time: {timestamp}</p>
+                  {emailError ? (
+                    <>
+                      <div style={styles.successIcon}>❌</div>
+                      <h2 style={{ ...styles.successTitle, color: '#E63946' }}>Alert Failed!</h2>
+                      <p style={{ color: '#E63946', textAlign: 'center', marginBottom: '8px' }}>{emailError}</p>
+                    </>
+                  ) : (
+                    <>
+                      <div style={styles.successIcon}>✅</div>
+                      <h2 style={styles.successTitle}>Alert Sent!</h2>
+                      <p style={styles.successDesc}>Your location has been shared with 2 contacts</p>
+                      {location && <p style={styles.successInfo}>Location: {location.lat}, {location.lng}</p>}
+                      <p style={styles.successInfo}>Time: {timestamp}</p>
+                    </>
+                  )}
                   <button style={styles.backHomeBtn} onClick={resetSOS}>Back to Home</button>
                 </div>
               )}

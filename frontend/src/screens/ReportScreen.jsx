@@ -1,26 +1,76 @@
 import React, { useState } from 'react';
+import { reportDanger } from '../api';
 
-const ReportScreen = ({ onNavigate }) => {
+const ReportScreen = ({ onNavigate, user, walletAddress }) => {
   // Form states
   const [locationName, setLocationName] = useState('');
   const [dangerType, setDangerType] = useState('Harassment');
   const [timeOfIncident, setTimeOfIncident] = useState('Evening (6pm-10pm)');
   const [description, setDescription] = useState('');
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const [reports, setReports] = useState([]);
+
+  const handleUpvote = (id) => {
+    setReports(reports.map(r => {
+      if (r.id === id) {
+        return r.upvoted 
+          ? { ...r, upvotes: r.upvotes - 1, upvoted: false } 
+          : { ...r, upvotes: r.upvotes + 1, upvoted: true };
+      }
+      return r;
+    }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!locationName.trim()) {
       setError('Please enter a location name');
       return;
     }
     setError('');
-    // Mock API call
-    setTimeout(() => {
+    
+    let signature = null;
+    let signerAddress = null;
+
+    if (walletAddress && window.ethereum) {
+      try {
+        const msg = `Verify Danger Report:\nLocation: ${locationName}\nType: ${dangerType}\nTimestamp: ${new Date().toISOString()}`;
+        const encoder = new TextEncoder();
+        const uint8Array = encoder.encode(msg);
+        const hexString = Array.from(uint8Array).map(b => b.toString(16).padStart(2, '0')).join('');
+        const msgHex = '0x' + hexString;
+
+        signature = await window.ethereum.request({
+          method: 'personal_sign',
+          params: [msgHex, walletAddress]
+        });
+        signerAddress = walletAddress;
+      } catch (err) {
+         console.log("Signature rejected", err);
+         setError("Web3 Signature required since wallet is connected.");
+         return;
+      }
+    }
+    
+    // API Call
+    reportDanger({
+      location_name: locationName,
+      danger_type: dangerType,
+      description: description,
+      timestamp: new Date().toISOString(),
+      user_name: isAnonymous ? "Anonymous User" : (user?.name || "RAKSHAKPATH User"),
+      signature: signature,
+      wallet_address: signerAddress
+    }).then(() => {
       setSubmitted(true);
-    }, 500);
+    }).catch(err => {
+      console.error(err);
+      setError('Failed to save to database');
+    });
   };
 
   const handleReset = () => {
@@ -29,6 +79,7 @@ const ReportScreen = ({ onNavigate }) => {
     setTimeOfIncident('Evening (6pm-10pm)');
     setDescription('');
     setUseCurrentLocation(false);
+    setIsAnonymous(false);
     setSubmitted(false);
     setError('');
   };
@@ -388,6 +439,16 @@ const ReportScreen = ({ onNavigate }) => {
                 </div>
               </div>
 
+              <div style={toggleContainerStyle}>
+                <label style={{...labelStyle, marginBottom: 0, color: textColor}}>🕵️ Report Anonymously</label>
+                <div 
+                  style={{...toggleStyle, backgroundColor: isAnonymous ? primaryColor : inputBg, borderColor: isAnonymous ? primaryColor : inputBorder}} 
+                  onClick={() => setIsAnonymous(!isAnonymous)}
+                >
+                  <div style={{...toggleCircleStyle, left: isAnonymous ? '22px' : '2px'}}></div>
+                </div>
+              </div>
+
               <button type="submit" style={submitBtnStyle}>
                 Submit Report
               </button>
@@ -396,7 +457,7 @@ const ReportScreen = ({ onNavigate }) => {
         ) : (
           <div style={successContainerStyle}>
             <div style={checkmarkStyle}>✅</div>
-            <h2 style={successTitleStyle}>Report Submitted!</h2>
+            <h2 style={successTitleStyle}>Saved to database ✅</h2>
             <p style={successTextStyle}>Thank you for making Delhi safer</p>
             <p style={successTextStyle}>Your report helps other women stay safe</p>
             <button type="button" onClick={handleReset} style={submitAnotherBtnStyle}>
@@ -409,35 +470,33 @@ const ReportScreen = ({ onNavigate }) => {
         <div style={{ marginTop: '30px' }}>
           <h2 style={sectionTitleStyle}>📊 Recent Reports Near You</h2>
           
-          <div style={reportItemStyle}>
-            <div style={reportItemColStyle}>
-              <span style={reportLocationStyle}>Rohini Sector 7</span>
-              <span style={reportMetaStyle}>
-                <span style={{color: redColor}}>Unsafe at night</span> • 2 hrs ago
-              </span>
+          {reports.length === 0 && (
+            <div style={{...reportItemStyle, justifyContent: 'center', color: mutedColor, fontStyle: 'italic'}}>
+              No reports verified nearby yet.
             </div>
-            <div style={badgeStyle}>5 ⚠️</div>
-          </div>
-
-          <div style={reportItemStyle}>
-            <div style={reportItemColStyle}>
-              <span style={reportLocationStyle}>Karol Bagh Metro</span>
-              <span style={reportMetaStyle}>
-                <span style={{color: redColor}}>Harassment</span> • 4 hrs ago
-              </span>
+          )}
+          {reports.map((r) => (
+            <div key={r.id} style={reportItemStyle}>
+              <div style={reportItemColStyle}>
+                <span style={reportLocationStyle}>{r.location_name || r.location}</span>
+                <span style={reportMetaStyle}>
+                  <span style={{color: redColor}}>{r.danger_type || r.type}</span> • {r.time || 'recently'}
+                </span>
+                {r.signature && (
+                   <div style={{color: '#2DC653', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                      🔗 Verified on-chain
+                   </div>
+                )}
+              </div>
+              <div 
+                style={{...badgeStyle, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: r.upvoted ? primaryColor : redColor, color: r.upvoted ? '#000' : '#FFF'}}
+                onClick={() => handleUpvote(r.id)}
+              >
+                <span>👍</span>
+                {r.upvotes}
+              </div>
             </div>
-            <div style={badgeStyle}>3 ⚠️</div>
-          </div>
-
-          <div style={reportItemStyle}>
-            <div style={reportItemColStyle}>
-              <span style={reportLocationStyle}>Noida Sector 18</span>
-              <span style={reportMetaStyle}>
-                <span style={{color: redColor}}>Poor lighting</span> • 6 hrs ago
-              </span>
-            </div>
-            <div style={badgeStyle}>7 ⚠️</div>
-          </div>
+          ))}
         </div>
       </div>
 

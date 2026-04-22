@@ -1,6 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-const HomeScreen = ({ onNavigate }) => {
+const HomeScreen = ({ onNavigate, language, setLanguage }) => {
+  const t = {
+    tagline: language === 'hi' ? 'हर महिला के लिए सुरक्षित रास्ते' : 'Guarded Routes for Every Woman',
+    heroTitle: language === 'hi' ? 'सुरक्षित रहें, स्मार्ट नेविगेट करें' : 'Stay Safe, Navigate Smart',
+    heroSub: language === 'hi' ? 'हर महिला के लिए AI-संचालित सुरक्षित मार्ग' : 'AI-powered safe routes for every woman',
+    pressEmerg: language === 'hi' ? 'आपातकाल में दबाएं' : 'Press in emergency',
+    findRoute: language === 'hi' ? 'सुरक्षित मार्ग खोजें' : 'Find Safe Route',
+    reportDanger: language === 'hi' ? 'खतरे की रिपोर्ट करें' : 'Report Danger',
+    recent: language === 'hi' ? '⚠️ हालिया खतरे की रिपोर्ट' : '⚠️ Recent Danger Reports',
+    home: language === 'hi' ? 'होम' : 'Home',
+    map: language === 'hi' ? 'नक्शा' : 'Map',
+    report: language === 'hi' ? 'रिपोर्ट' : 'Report',
+    statsDaz: language === 'hi' ? 'खतरनाक क्षेत्र' : 'Danger Zones',
+    statsSafe: language === 'hi' ? 'सुरक्षित मार्ग' : 'Safe Routes',
+    statsRep: language === 'hi' ? 'रिपोर्ट्स' : 'Reports',
+  };
+
   const styles = {
     container: {
       minHeight: '100vh',
@@ -43,6 +59,19 @@ const HomeScreen = ({ onNavigate }) => {
       fontSize: '14px',
       color: '#8888AA',
       margin: '4px 0 0 0'
+    },
+    locationBadge: {
+      backgroundColor: 'rgba(45, 198, 83, 0.1)',
+      color: '#2DC653',
+      padding: '4px 10px',
+      borderRadius: '20px',
+      fontSize: '12px',
+      fontWeight: 'bold',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      marginTop: '8px',
+      alignSelf: 'flex-start'
     },
     // 2. HERO SECTION
     hero: {
@@ -225,6 +254,35 @@ const HomeScreen = ({ onNavigate }) => {
     }
   };
 
+  const [address, setAddress] = useState("Locating...");
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.address) {
+                const city = data.address.city || data.address.state_district || data.address.state || "Unknown City";
+                const area = data.address.neighbourhood || data.address.suburb || data.address.county || "";
+                setAddress(area ? `${area}, ${city}` : city);
+              } else {
+                setAddress(`Lat: ${latitude.toFixed(2)}, Lng: ${longitude.toFixed(2)}`);
+              }
+            })
+            .catch(() => setAddress(`Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`));
+        },
+        (err) => {
+          setAddress("Location Access Denied");
+        }
+      );
+    } else {
+      setAddress("Geolocation Not Supported");
+    }
+  }, []);
+
   return (
     <>
       <style>
@@ -251,18 +309,33 @@ const HomeScreen = ({ onNavigate }) => {
       <div style={styles.container}>
         <div style={styles.wrapper}>
           
-          {/* 1. HEADER */}
           <div style={styles.header}>
-            <div style={styles.headerTitleBox}>
-              <h1 style={styles.headerTitle}>🛡️ SafeRoute</h1>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+              <div style={styles.headerTitleBox}>
+                <h1 style={styles.headerTitle}>🛡️ RAKSHAKPATH</h1>
+              </div>
+              <div style={{display: 'flex', gap: '12px', alignItems: 'center'}}>
+                <button 
+                  onClick={() => setLanguage(language === 'en' ? 'hi' : 'en')}
+                  style={{backgroundColor: '#FFB703', color: '#000', border: 'none', padding: '4px 8px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px'}}
+                >
+                  {language === 'en' ? 'A/अ' : 'अ/A'}
+                </button>
+                <div onClick={() => onNavigate('profile')} style={{cursor: 'pointer', fontSize: '18px'}}>
+                  👤
+                </div>
+              </div>
             </div>
-            <p style={styles.tagline}>Your safety, our priority</p>
+            <p style={styles.tagline}>{t.tagline}</p>
+            <div style={styles.locationBadge}>
+              📍 {address}
+            </div>
           </div>
 
           {/* 2. HERO SECTION */}
           <div style={styles.hero}>
-            <h2 style={styles.heroTitle}>Stay Safe, Navigate Smart</h2>
-            <p style={styles.heroSubtext}>AI-powered safe routes for every woman</p>
+            <h2 style={styles.heroTitle}>{t.heroTitle}</h2>
+            <p style={styles.heroSubtext}>{t.heroSub}</p>
             
             <div style={styles.sosButtonContainer}>
               <button 
@@ -272,22 +345,22 @@ const HomeScreen = ({ onNavigate }) => {
                 <span style={styles.sosText}>SOS</span>
               </button>
             </div>
-            <p style={styles.sosHelpText}>Press in emergency</p>
+            <p style={styles.sosHelpText}>{t.pressEmerg}</p>
           </div>
 
           {/* 3. STATS BAR */}
           <div style={styles.statsContainer}>
             <div style={styles.statCard}>
-              <span style={styles.statValueDanger}>247</span>
-              <span style={styles.statLabelDanger}>Danger Zones</span>
+              <span style={styles.statValueDanger}>0</span>
+              <span style={styles.statLabelDanger}>{t.statsDaz}</span>
             </div>
             <div style={styles.statCard}>
-              <span style={styles.statValueSafe}>1.2K</span>
-              <span style={styles.statLabelSafe}>Safe Routes</span>
+              <span style={styles.statValueSafe}>0</span>
+              <span style={styles.statLabelSafe}>{t.statsSafe}</span>
             </div>
             <div style={styles.statCard}>
-              <span style={styles.statValueWarning}>890</span>
-              <span style={styles.statLabelWarning}>Reports</span>
+              <span style={styles.statValueWarning}>0</span>
+              <span style={styles.statLabelWarning}>{t.statsRep}</span>
             </div>
           </div>
 
@@ -295,28 +368,9 @@ const HomeScreen = ({ onNavigate }) => {
           <div style={styles.alertsSection}>
             <h3 style={styles.alertsHeading}>⚠️ Recent Danger Reports</h3>
             
-            <div style={styles.alertCard}>
-              <div style={styles.alertInfo}>
-                <span style={styles.alertLocation}>Rohini Sector 7</span>
-                <span style={styles.alertDetails}>2 hrs ago • Unsafe at night</span>
-              </div>
-              <div style={styles.alertBadge}>5</div>
-            </div>
-
-            <div style={styles.alertCard}>
-              <div style={styles.alertInfo}>
-                <span style={styles.alertLocation}>Karol Bagh Metro</span>
-                <span style={styles.alertDetails}>4 hrs ago • Harassment</span>
-              </div>
-              <div style={styles.alertBadge}>3</div>
-            </div>
-
-            <div style={styles.alertCard}>
-              <div style={styles.alertInfo}>
-                <span style={styles.alertLocation}>Noida Sector 18</span>
-                <span style={styles.alertDetails}>6 hrs ago • Poor lighting</span>
-              </div>
-              <div style={styles.alertBadge}>7</div>
+            
+            <div style={{...styles.alertCard, justifyContent: 'center', color: '#8888AA', fontStyle: 'italic'}}>
+              No recent alerts in your area.
             </div>
           </div>
 
@@ -327,7 +381,7 @@ const HomeScreen = ({ onNavigate }) => {
               onClick={() => onNavigate && onNavigate('map')}
             >
               <span style={{fontSize: '18px'}}>🗺️</span> 
-              <span>Find Safe Route</span>
+              <span>{t.findRoute}</span>
             </button>
             
             <button 
@@ -335,7 +389,7 @@ const HomeScreen = ({ onNavigate }) => {
               onClick={() => onNavigate && onNavigate('report')}
             >
               <span style={{fontSize: '18px'}}>⚠️</span> 
-              <span>Report Danger</span>
+              <span>{t.reportDanger}</span>
             </button>
           </div>
 
@@ -345,11 +399,11 @@ const HomeScreen = ({ onNavigate }) => {
         <div style={styles.bottomNav}>
           <button style={{...styles.navItem, color: '#F0F0FF'}} onClick={() => onNavigate('home')}>
             <span style={{fontSize: '20px'}}>🏠</span>
-            <span>Home</span>
+            <span>{t.home}</span>
           </button>
           <button style={styles.navItem} onClick={() => onNavigate('map')}>
             <span style={{fontSize: '20px'}}>🗺️</span>
-            <span>Map</span>
+            <span>{t.map}</span>
           </button>
           <button style={styles.navItem} onClick={() => onNavigate('sos')}>
             <span style={{fontSize: '20px'}}>🆘</span>
@@ -357,7 +411,7 @@ const HomeScreen = ({ onNavigate }) => {
           </button>
           <button style={styles.navItem} onClick={() => onNavigate('report')}>
             <span style={{fontSize: '20px'}}>⚠️</span>
-            <span>Report</span>
+            <span>{t.report}</span>
           </button>
         </div>
 

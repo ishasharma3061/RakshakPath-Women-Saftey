@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Marker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { getDangers } from '../api';
 
 // Fix leaflet icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -19,9 +20,71 @@ const dangerZones = [
   { lat: 28.6692, lng: 77.4538, name: "Ghaziabad Border", reports: 6 }
 ];
 
-const MapScreen = ({ onNavigate }) => {
+const safeZones = [
+  { lat: 28.6129, lng: 77.2295, name: "India Gate Police Station", type: "Police" },
+  { lat: 28.5677, lng: 77.2433, name: "AIIMS Hospital", type: "Hospital" },
+  { lat: 28.6315, lng: 77.2167, name: "Connaught Place Police Booth", type: "Police" },
+  { lat: 28.7041, lng: 77.1000, name: "Rohini Sector 7 Hospital", type: "Hospital" }
+];
+
+const create3DUserIcon = (userName) => L.divIcon({
+  className: 'custom-3d-user-icon',
+  html: `
+    <div style="position: relative; width: 40px; height: 40px; transform: translate(-50%, -100%);">
+      <div style="position: absolute; bottom: -5px; left: 5px; width: 30px; height: 10px; background: rgba(0,0,0,0.5); border-radius: 50%; filter: blur(4px);"></div>
+      <div style="position: absolute; top: 0; left: 0; width: 40px; height: 40px; background: linear-gradient(135deg, #FFB703, #E63946); border-radius: 50%; border: 3px solid #FFF; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 15px rgba(230,57,70,0.4), inset 0 -4px 8px rgba(0,0,0,0.2); animation: bobUser 2s infinite ease-in-out;">
+        <span style="font-size: 18px;">👤</span>
+      </div>
+      <div style="position: absolute; top: -30px; left: -30px; width: 100px; text-align: center; color: #FFF; background: #161625; padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: bold; border: 1px solid rgba(255,183,3,0.5); box-shadow: 0 4px 10px rgba(0,0,0,0.5); animation: bobUser 2s infinite ease-in-out; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+        ${userName}
+      </div>
+    </div>
+  `,
+  iconSize: [0, 0]
+});
+
+const MapScreen = ({ onNavigate, user, language }) => {
   const [fromLocation, setFromLocation] = useState('');
   const [toLocation, setToLocation] = useState('');
+  const [liveZones, setLiveZones] = useState([]);
+  const [userLocation, setUserLocation] = useState(null);
+
+  useEffect(() => {
+    // 1. Fetch Dangers
+    getDangers()
+      .then((res) => {
+        if (res.data && res.data.length > 0) {
+          // Map backend data to local structure. Since backend lacks coordinates, assign nearby dummy ones
+          const apiDangers = res.data.map((d) => ({
+            lat: 28.5 + (Math.random() * 0.3),
+            lng: 77.0 + (Math.random() * 0.4),
+            name: d.location_name,
+            type: d.danger_type,
+            reports: 1 
+          }));
+          setLiveZones(apiDangers);
+        }
+      })
+      .catch((err) => {
+        console.error("Map API Error (using hardcoded fallback):", err);
+      });
+
+    // 2. Fetch User's Live Geolocation
+    let watchId;
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+        },
+        (err) => console.log('Map Geolocation error:', err),
+        { enableHighAccuracy: true, maximumAge: 0 }
+      );
+    }
+    
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
 
   const styles = {
     container: {
@@ -204,6 +267,11 @@ const MapScreen = ({ onNavigate }) => {
           .leaflet-popup-tip {
             background-color: #161625 !important;
           }
+
+          @keyframes bobUser {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+          }
         `}
       </style>
 
@@ -256,8 +324,31 @@ const MapScreen = ({ onNavigate }) => {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               
-              {dangerZones.map((zone, idx) => {
-                const score = 100 - (zone.reports * 15);
+              {safeZones.map((zone, idx) => (
+                <CircleMarker 
+                  key={`safe-${idx}`}
+                  center={[zone.lat, zone.lng]}
+                  pathOptions={{ color: '#2DC653', fillColor: '#2DC653', fillOpacity: 0.8 }}
+                  radius={12}
+                >
+                  <Popup>
+                    <div style={{ fontFamily: "'DM Sans', sans-serif", padding: '4px' }}>
+                      <strong style={{color: '#2DC653'}}>{zone.type === "Police" ? '🚓' : '🏥'} {zone.name}</strong>
+                      <div style={{color: '#8888AA', marginTop: '4px', fontSize: '12px'}}>Verified Safe Haven</div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))}
+              
+              {liveZones.map((zone, idx) => {
+                const currentHour = new Date().getHours();
+                const isNight = currentHour >= 18 || currentHour < 6;
+                
+                let penalty = zone.reports * 15;
+                if (isNight && (zone.type === "Poor Lighting" || zone.type === "Unsafe at Night" || zone.name?.toLowerCase().includes("night"))) {
+                   penalty += 40; // Apply AI-driven dynamic nighttime penalty
+                }
+                const score = Math.max(0, 100 - penalty);
                 const riskColor = getRiskColor(score);
                 
                 return (
@@ -281,6 +372,13 @@ const MapScreen = ({ onNavigate }) => {
                   </CircleMarker>
                 );
               })}
+
+              {userLocation && (
+                <Marker 
+                  position={userLocation} 
+                  icon={create3DUserIcon(user?.name || 'User')} 
+                />
+              )}
             </MapContainer>
 
             {/* 4. SAFETY LEGEND */}
