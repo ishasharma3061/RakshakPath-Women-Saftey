@@ -31,10 +31,9 @@ export default function App() {
   };
 
   const handleNavigate = (newScreen, payload) => {
-    if (payload && payload.userName) {
-      const newUser = { name: payload.userName };
-      setUser(newUser);
-      localStorage.setItem('rakshak_user', JSON.stringify(newUser));
+    if (payload && payload.user) {
+      setUser(payload.user);
+      localStorage.setItem('rakshak_user', JSON.stringify(payload.user));
     } else if (newScreen === 'auth' && payload?.logout) {
       setUser({ name: "User" });
       localStorage.removeItem('rakshak_user');
