@@ -137,3 +137,5 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+saferoute-b5042-firebase-adminsdk-fbsvc-43a2c1a5aa.json
+push_error.txt
