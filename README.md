@@ -75,6 +75,22 @@ npx jest
 npx vitest
 ```
 
+### 5. Build Native Android App (Capacitor)
+This project uses Capacitor to compile the React PWA into a native Android `.apk`.
+
+```bash
+cd frontend
+# 1. Compile the React project into static assets
+npm run build
+
+# 2. Sync the web assets into the Android Studio project
+npx cap sync
+
+# 3. Launch Android Studio
+npx cap open android
+```
+*Inside Android Studio, navigate to `Build > Generate App Bundles or APKs > Build APK(s)` to export the final application file.*
+
 ---
 
 ## 🤝 The Team: Neural Nexus
