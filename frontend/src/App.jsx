@@ -5,6 +5,7 @@ import SOSScreen from "./screens/SOSScreen";
 import ReportScreen from "./screens/ReportScreen";
 import AuthScreen from "./screens/AuthScreen";
 import ProfileScreen from "./screens/ProfileScreen";
+import VerificationScreen from "./screens/VerificationScreen";
 
 export default function App() {
   const [screen, setScreen] = useState("auth");
@@ -51,6 +52,7 @@ export default function App() {
       {screen === "sos" && <SOSScreen onNavigate={handleNavigate} user={user} language={language} />}
       {screen === "report" && <ReportScreen onNavigate={handleNavigate} user={user} language={language} walletAddress={walletAddress} />}
       {screen === "profile" && <ProfileScreen onNavigate={handleNavigate} user={user} language={language} walletAddress={walletAddress} onWalletConnect={handleWalletConnect} />}
+      {screen === "verification" && <VerificationScreen onNavigate={handleNavigate} user={user} language={language} />}
     </div>
   );
 }

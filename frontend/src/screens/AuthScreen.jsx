@@ -64,7 +64,7 @@ const AuthScreen = ({ onNavigate }) => {
 
     localStorage.setItem("rakshak_user", JSON.stringify(newUser));
     localStorage.setItem("rakshak_logged_in", "true");
-    onNavigate("home", { user: newUser });
+    onNavigate("verification", { user: newUser });
   };
 
   const primaryColor = "#FFB703";
