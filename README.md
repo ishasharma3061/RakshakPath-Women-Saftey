@@ -1,8 +1,7 @@
 # 🛡️ RAKSHAKPATH
-*Guarded Routes for Every Woman*
+Women Safety Application
 
-**Hackathon Team Repository for Neural Nexus**  
-*[HackIndia Ignite - North Region Neural Nexus]*
+Developed as a hackathon project focused on providing emergency assistance and safety features for women through instant SOS alerts and location sharing.
 
 ![RakshakPath Banner](https://img.shields.io/badge/Status-Hackathon_Ready-success?style=for-the-badge)
 ![Web3 Enabled](https://img.shields.io/badge/Web3-MetaMask_Verified-blue?style=for-the-badge)
