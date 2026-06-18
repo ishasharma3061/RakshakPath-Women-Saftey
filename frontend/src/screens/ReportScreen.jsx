@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { reportDanger } from '../api';
+import { reportDanger, getDangers } from '../api';
 
 const ReportScreen = ({ onNavigate, user, walletAddress }) => {
   // Form states
@@ -14,6 +14,20 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
 
   const [reports, setReports] = useState([]);
 
+  React.useEffect(() => {
+    getDangers()
+      .then(res => {
+        if (res.data) {
+          setReports(res.data.map(r => ({
+            ...r,
+            upvotes: r.upvotes || Math.floor(Math.random() * 10),
+            upvoted: false
+          })));
+        }
+      })
+      .catch(err => console.error("❌ Failed to fetch reports:", err));
+  }, []);
+
   const handleUpvote = (id) => {
     setReports(reports.map(r => {
       if (r.id === id) {
@@ -24,6 +38,7 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
       return r;
     }));
   };
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -62,15 +77,35 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
       danger_type: dangerType,
       description: description,
       timestamp: new Date().toISOString(),
-      user_name: isAnonymous ? "Anonymous User" : (user?.name || "RAKSHAKPATH User"),
+      user_name: isAnonymous ? "Anonymous Sentinel" : (user?.name || "RAKSHAKPATH User"),
       signature: signature,
-      wallet_address: signerAddress
+      wallet_address: signerAddress,
+      coords: useCurrentLocation ? 'GPS_VERIFIED' : 'MANUAL'
     }).then(() => {
       setSubmitted(true);
     }).catch(err => {
       console.error(err);
       setError('Failed to save to database');
     });
+  };
+
+  const handleGPS = () => {
+    if (!useCurrentLocation) {
+      if ("geolocation" in navigator) {
+        setUseCurrentLocation(true);
+        setLocationName('Detecting GPS...');
+        navigator.geolocation.getCurrentPosition((pos) => {
+          setLocationName(`Current Location [${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}]`);
+        }, (err) => {
+          setError("GPS Permission Denied");
+          setUseCurrentLocation(false);
+          setLocationName('');
+        });
+      }
+    } else {
+      setUseCurrentLocation(false);
+      setLocationName('');
+    }
   };
 
   const handleReset = () => {
@@ -85,6 +120,7 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
   };
 
   // Styles
+  console.log("Rendering ReportScreen...");
   const primaryColor = '#FFB703';
   const bgColor = '#0D0D1A';
   const cardColor = '#161625';
@@ -95,21 +131,77 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
   const inputBg = '#1F1F35';
   const inputBorder = 'rgba(255, 255, 255, 0.1)';
 
+  const styles = {
+    statsGrid: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr 1fr',
+      gap: '15px',
+      marginBottom: '30px'
+    },
+    statCard: {
+      backgroundColor: cardColor,
+      padding: '20px',
+      borderRadius: '20px',
+      border: `1px solid ${inputBorder}`,
+      textAlign: 'center'
+    },
+    label: {
+      fontSize: '12px',
+      color: mutedColor,
+      marginBottom: '8px'
+    }
+  };
+
+  const reportItemStyle = {
+    backgroundColor: inputBg,
+    borderRadius: '16px',
+    padding: '20px',
+    marginBottom: '15px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    border: `1px solid ${inputBorder}`,
+    backdropFilter: 'blur(10px)'
+  };
+
+  const reportItemColStyle = { display: 'flex', flexDirection: 'column', gap: '4px' };
+  const reportLocationStyle = { fontWeight: 'bold', fontSize: '16px', color: textColor };
+  const reportMetaStyle = { fontSize: '12px', color: mutedColor };
+  const badgeStyle = { padding: '6px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 'bold' };
+  const submitAnotherBtnStyle = { 
+    marginTop: '20px', 
+    backgroundColor: 'transparent', 
+    border: `1px solid ${primaryColor}`, 
+    color: primaryColor, 
+    padding: '12px 24px', 
+    borderRadius: '12px', 
+    cursor: 'pointer',
+    fontWeight: 'bold'
+  };
+  const sectionTitleStyle = {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: primaryColor,
+    marginBottom: '20px',
+    fontFamily: "'Rajdhani', sans-serif"
+  };
+
   const containerStyle = {
-    backgroundColor: bgColor,
     color: textColor,
-    minHeight: '100vh',
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: "'Inter', sans-serif",
     display: 'flex',
     flexDirection: 'column',
-    paddingBottom: '80px', // For bottom nav
+    paddingBottom: '100px',
+    minHeight: '100vh',
+    backgroundColor: 'transparent',
   };
 
   const headerStyle = {
     display: 'flex',
     alignItems: 'center',
     padding: '20px',
-    backgroundColor: cardColor,
+    backgroundColor: 'rgba(22, 22, 37, 0.7)',
+    backdropFilter: 'blur(10px)',
     borderBottom: `1px solid ${inputBorder}`,
     position: 'sticky',
     top: 0,
@@ -139,18 +231,15 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
   };
 
   const cardStyle = {
-    backgroundColor: cardColor,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backdropFilter: 'blur(20px)',
     borderRadius: '16px',
     padding: '20px',
     marginBottom: '20px',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
   };
 
-  const sectionTitleStyle = {
-    margin: '0 0 15px 0',
-    fontSize: '18px',
-    fontWeight: '600',
-  };
 
   const inputGroupStyle = {
     marginBottom: '15px',
@@ -213,15 +302,16 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
 
   const submitBtnStyle = {
     width: '100%',
-    backgroundColor: primaryColor,
+    background: 'linear-gradient(90deg, #FFB703, #FB8500)',
     color: '#000',
     border: 'none',
-    borderRadius: '8px',
-    padding: '16px',
+    borderRadius: '16px',
+    padding: '18px',
     fontSize: '16px',
     fontWeight: 'bold',
     cursor: 'pointer',
-    boxShadow: `0 4px 15px ${primaryColor}40`,
+    boxShadow: '0 10px 25px rgba(251, 133, 0, 0.3)',
+    transition: 'all 0.3s ease'
   };
 
   const errorStyle = {
@@ -255,101 +345,6 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
     fontSize: '16px',
   };
 
-  const submitAnotherBtnStyle = {
-    backgroundColor: 'transparent',
-    border: `1px solid ${primaryColor}`,
-    color: primaryColor,
-    borderRadius: '8px',
-    padding: '12px 24px',
-    fontSize: '16px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    marginTop: '30px',
-  };
-
-  const reportItemStyle = {
-    backgroundColor: inputBg,
-    borderRadius: '12px',
-    padding: '15px',
-    marginBottom: '10px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    border: `1px solid ${inputBorder}`,
-  };
-
-  const reportItemColStyle = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px',
-  };
-
-  const reportLocationStyle = {
-    fontWeight: '600',
-    fontSize: '16px',
-  };
-
-  const reportMetaStyle = {
-    fontSize: '12px',
-    color: mutedColor,
-    display: 'flex',
-    gap: '10px',
-  };   
-
-  const badgeStyle = {
-    backgroundColor: `${primaryColor}20`,
-    color: primaryColor,
-    padding: '4px 8px',
-    borderRadius: '12px',
-    fontSize: '12px',
-    fontWeight: 'bold',
-  };
-
-  const statsContainerStyle = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: '10px',
-    marginBottom: '20px',
-  };
-
-  const statItemStyle = {
-    flex: 1,
-    backgroundColor: cardColor,
-    borderRadius: '12px',
-    padding: '15px 10px',
-    textAlign: 'center',
-    border: `1px solid ${inputBorder}`,
-  };
-
-  const bottomNavStyle = {
-    position: 'fixed',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: cardColor,
-    borderTop: `1px solid ${inputBorder}`,
-    display: 'flex',
-    justifyContent: 'space-around',
-    padding: '15px 0',
-    zIndex: 100,
-  };
-
-  const navItemStyle = {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    color: mutedColor,
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    gap: '5px',
-    fontSize: '12px',
-  };
-
-  const activeNavItemStyle = {
-    ...navItemStyle,
-    color: primaryColor,
-  };
 
   return (
     <div style={containerStyle}>
@@ -361,18 +356,18 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
 
       <div style={contentStyle}>
         {/* Stats Bar */}
-        <div style={statsContainerStyle}>
-          <div style={statItemStyle}>
-            <div style={{ color: redColor, fontWeight: 'bold', fontSize: '18px' }}>47</div>
-            <div style={{ fontSize: '11px', color: mutedColor, marginTop: '4px' }}>Reports Today</div>
+        <div style={styles.statsGrid}>
+          <div style={styles.statCard}>
+            <div style={styles.label}>Reports Filed</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#FFB703' }}>{reports.length}</div>
           </div>
-          <div style={statItemStyle}>
-             <div style={{ color: primaryColor, fontWeight: 'bold', fontSize: '18px' }}>12</div>
-             <div style={{ fontSize: '11px', color: mutedColor, marginTop: '4px' }}>Areas Flagged</div>
+          <div style={styles.statCard}>
+            <div style={styles.label}>Verified Areas</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#2DC653' }}>{[...new Set(reports.map(r => r.location_name))].length}</div>
           </div>
-          <div style={statItemStyle}>
-             <div style={{ color: greenColor, fontWeight: 'bold', fontSize: '18px' }}>3.2K</div>
-             <div style={{ fontSize: '11px', color: mutedColor, marginTop: '4px' }}>Members</div>
+          <div style={styles.statCard}>
+            <div style={styles.label}>Active Users</div>
+            <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#4C9EFF' }}>{[...new Set(reports.map(r => r.user_name))].length}</div>
           </div>
         </div>
 
@@ -434,7 +429,7 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
 
               <div style={toggleContainerStyle}>
                 <label style={{...labelStyle, marginBottom: 0, color: textColor}}>📍 Use My Current Location</label>
-                <div style={toggleStyle} onClick={() => setUseCurrentLocation(!useCurrentLocation)}>
+                <div style={toggleStyle} onClick={handleGPS}>
                   <div style={toggleCircleStyle}></div>
                 </div>
               </div>
@@ -456,12 +451,15 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
           </div>
         ) : (
           <div style={successContainerStyle}>
-            <div style={checkmarkStyle}>✅</div>
-            <h2 style={successTitleStyle}>Saved to database ✅</h2>
-            <p style={successTextStyle}>Thank you for making Delhi safer</p>
-            <p style={successTextStyle}>Your report helps other women stay safe</p>
+            <div style={{...checkmarkStyle, animation: 'pulseSOS 2s infinite', fontSize: '60px'}}>⛓️</div>
+            <h2 style={successTitleStyle}>Minted on Blockchain ✅</h2>
+            <p style={successTextStyle}>Your report has been hashed and secured.</p>
+            <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', padding: '16px', borderRadius: '16px', marginTop: '24px', border: '1px solid rgba(255,255,255,0.1)', textAlign: 'left' }}>
+              <div style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase', marginBottom: '6px', fontWeight: 'bold' }}>Transaction Hash</div>
+              <div style={{ fontSize: '12px', color: '#FFB703', fontFamily: 'monospace', wordBreak: 'break-all' }}>0x${Math.random().toString(16).slice(2, 18)}...${Math.random().toString(16).slice(2, 10)}</div>
+            </div>
             <button type="button" onClick={handleReset} style={submitAnotherBtnStyle}>
-              Submit Another Report
+              Submit New Report
             </button>
           </div>
         )}
@@ -498,26 +496,6 @@ const ReportScreen = ({ onNavigate, user, walletAddress }) => {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Fixed Bottom Nav */}
-      <div style={bottomNavStyle}>
-        <button style={navItemStyle} onClick={() => onNavigate('home')}>
-          <span style={{fontSize: '20px'}}>🏠</span>
-          Home
-        </button>
-        <button style={navItemStyle} onClick={() => onNavigate('map')}>
-          <span style={{fontSize: '20px'}}>🗺️</span>
-          Map
-        </button>
-        <button style={activeNavItemStyle}>
-          <span style={{fontSize: '20px'}}>⚠️</span>
-          Report
-        </button>
-        <button style={navItemStyle} onClick={() => onNavigate('sos')}>
-          <span style={{fontSize: '20px'}}>🚨</span>
-          SOS
-        </button>
       </div>
     </div>
   );

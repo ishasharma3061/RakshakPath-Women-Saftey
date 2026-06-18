@@ -1,0 +1,27 @@
+{
+  "users": {
+    "kjindal509@gmail.com": {
+      "email": "kjindal509@gmail.com",
+      "password": "",
+      "name": "bhumi",
+      "address": "nalagarh",
+      "contactNumber": "",
+      "emergencyContact1": "7986578178",
+      "emergencyContact2": "8572034822",
+      "isVerified": true,
+      "profilePic": ""
+    },
+    "rattanabhay004@gmail.com": {
+      "email": "rattanabhay004@gmail.com",
+      "password": "",
+      "name": "krish jindal",
+      "address": "na",
+      "contactNumber": "7986578178",
+      "emergencyContact1": "8570234822",
+      "emergencyContact2": "8894325676",
+      "isVerified": true
+    }
+  },
+  "otpStore": {},
+  "reports": []
+}

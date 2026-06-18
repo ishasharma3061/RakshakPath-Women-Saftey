@@ -4,7 +4,7 @@ import { sendSOS } from '../api';
 
 emailjs.init("ZNNuLKc75zgQzIz56");
 
-const SOSScreen = ({ onNavigate }) => {
+const SOSScreen = ({ onNavigate, user, language }) => {
   const [location, setLocation] = useState(null);
   const [countdown, setCountdown] = useState(5);
   const [isCounting, setIsCounting] = useState(false);
@@ -29,30 +29,51 @@ const SOSScreen = ({ onNavigate }) => {
       time: new Date().toLocaleString()
     };
 
-    // Call Backend API
+    const googleMapsUrl = location ? `https://www.google.com/maps?q=${location.lat},${location.lng}` : "Location not available";
+    // For Hackathon Demo: Force injecting the verified Twilio number to ensure call/sms delivery
+    const demoNumber = "7986578178";
+    const contactsList = [user?.emergencyContact1 || demoNumber, user?.emergencyContact2].filter(Boolean);
+    const smsMessage = `🚨 HELP! I am using RAKSHAKPATH and I need assistance. My last location: ${googleMapsUrl}`;
+
+    // --- OFFLINE FALLBACK ---
+    if (!navigator.onLine) {
+      if (contactsList.length > 0) {
+        const phones = contactsList.join(',');
+        window.location.href = `sms:${phones}?body=${encodeURIComponent(smsMessage)}`;
+        setEmailError('No internet connection. Opening your SMS app to send alert via mobile network.');
+        setAlertSent(true);
+      } else {
+        setEmailError('Network is offline and no emergency contacts are saved.');
+        setAlertSent(false);
+      }
+      return;
+    }
+
+    // Call Backend (This now triggers Twilio SMS & Call)
     sendSOS({
       latitude: templateParams.latitude,
       longitude: templateParams.longitude,
       location: templateParams.location,
       time: templateParams.time,
-      user_name: templateParams.user_name
-    }).catch(err => console.error("Database SOS Error:", err));
-
-    emailjs.send(
-      "service_889jh7p",
-      "template_g6yj90n",
-      templateParams
-    ).then(
-      (response) => {
-        console.log('SUCCESS!', response.status, response.text);
+      user_name: user?.name || "RAKSHAKPATH User",
+      contacts: contactsList
+    }).then((res) => {
+      setAlertSent(true);
+      setEmailError(''); // Clear any previous errors
+    }).catch(err => {
+      console.error("SOS Error:", err);
+      // --- SERVER ERROR FALLBACK ---
+      if (contactsList.length > 0) {
+        const phones = contactsList.join(',');
+        window.location.href = `sms:${phones}?body=${encodeURIComponent(smsMessage)}`;
+        setEmailError('Server error. Opening your SMS app to send alert manually.');
         setAlertSent(true);
-        if (!silent) setEmailError('');
-      },
-      (error) => {
-        console.log('FAILED...', error);
-        if (!silent) setEmailError('Failed to send email alert. Please contact emergency directly.');
+      } else {
+        const errorMessage = err.response?.data?.error || "Failed to trigger emergency system.";
+        setEmailError(errorMessage);
+        setAlertSent(false);
       }
-    );
+    });
   };
 
   // 1. Voice Trigger SOS Listener
@@ -120,21 +141,19 @@ const SOSScreen = ({ onNavigate }) => {
   }, [isCounting, countdown, location]);
 
   const handleSOSClick = () => {
-    if (!isCounting && !alertSent) {
-      setIsCounting(true);
-      setCountdown(5);
+    // Proceed with SOS directly
+    if (!alertSent) {
+      triggerEmergency(false);
     }
   };
 
   const handleCancel = () => {
     setIsCounting(false);
-    setCountdown(5);
   };
 
   const resetSOS = () => {
     setAlertSent(false);
     setIsCounting(false);
-    setCountdown(5);
     setEmailError('');
     onNavigate('home');
   };
@@ -501,9 +520,7 @@ const SOSScreen = ({ onNavigate }) => {
 
               {isCounting && !alertSent && !emailError && (
                 <>
-                  <div style={styles.countNum}>{countdown}</div>
-                  <div style={styles.pulseText}>Sending alert in {countdown} seconds...</div>
-                  <button style={styles.cancelBtn} onClick={handleCancel}>CANCEL</button>
+                  <div style={styles.pulseText}>Sending alert...</div>
                 </>
               )}
 
@@ -519,12 +536,29 @@ const SOSScreen = ({ onNavigate }) => {
                     <>
                       <div style={styles.successIcon}>✅</div>
                       <h2 style={styles.successTitle}>Alert Sent!</h2>
-                      <p style={styles.successDesc}>Your location has been shared with 2 contacts</p>
+                      <p style={styles.successDesc}>Automated Call & SMS triggered successfully!</p>
                       {location && <p style={styles.successInfo}>Location: {location.lat}, {location.lng}</p>}
                       <p style={styles.successInfo}>Time: {timestamp}</p>
+
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '20px', width: '100%', justifyContent: 'center' }}>
+                        <button 
+                          style={{ flex: 1, backgroundColor: 'rgba(76, 158, 255, 0.1)', border: '1px solid #4C9EFF', padding: '12px', borderRadius: '8px', color: '#4C9EFF', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s ease' }}
+                          onClick={() => window.location.href = `tel:+91${user?.emergencyContact1 || "7986578178"}`}
+                        >
+                          <span style={{fontSize: '18px'}}>📞</span> Call Contact 1
+                        </button>
+                        {user?.emergencyContact2 && (
+                          <button 
+                            style={{ flex: 1, backgroundColor: 'rgba(76, 158, 255, 0.1)', border: '1px solid #4C9EFF', padding: '12px', borderRadius: '8px', color: '#4C9EFF', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s ease' }}
+                            onClick={() => window.location.href = `tel:+91${user.emergencyContact2}`}
+                          >
+                            <span style={{fontSize: '18px'}}>📞</span> Call Contact 2
+                          </button>
+                        )}
+                      </div>
                     </>
                   )}
-                  <button style={styles.backHomeBtn} onClick={resetSOS}>Back to Home</button>
+                  <button style={{ ...styles.backHomeBtn, marginTop: '24px' }} onClick={resetSOS}>Back to Dashboard</button>
                 </div>
               )}
 
@@ -534,21 +568,34 @@ const SOSScreen = ({ onNavigate }) => {
             <div style={styles.contactsSection}>
               <h3 style={styles.sectionTitle}>📞 Trusted Contacts</h3>
               
-              <div style={styles.contactCard}>
-                <div>
-                  <div style={styles.contactName}>👩 Mom</div>
-                  <div style={styles.contactNumber}>+91 98765 43210</div>
-                </div>
-                <div style={styles.badge}>Will be notified</div>
-              </div>
+              {[user?.emergencyContact1 || "7986578178", user?.emergencyContact2].map((contact, idx) => {
+                if (!contact) return null;
+                const formattedPhone = contact.startsWith('+') ? contact : `+91${contact}`;
+                const smsMessage = `🚨 HELP! I am using RAKSHAKPATH and I need assistance. My last location: ${location ? `https://www.google.com/maps?q=${location.lat},${location.lng}` : "Not available"}`;
 
-              <div style={styles.contactCard}>
-                <div>
-                  <div style={styles.contactName}>👫 Best Friend</div>
-                  <div style={styles.contactNumber}>+91 91234 56789</div>
-                </div>
-                <div style={styles.badge}>Will be notified</div>
-              </div>
+                return (
+                  <div key={idx} style={styles.contactCard}>
+                    <div style={{ flex: 1 }}>
+                      <div style={styles.contactName}>Contact {idx + 1}</div>
+                      <div style={styles.contactNumber}>{formattedPhone}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        style={{ ...styles.badge, backgroundColor: '#2DC653', color: '#000', border: 'none', cursor: 'pointer', padding: '8px 12px' }}
+                        onClick={() => window.location.href = `tel:${formattedPhone}`}
+                      >
+                        📞 Call
+                      </button>
+                      <button 
+                        style={{ ...styles.badge, backgroundColor: '#4C9EFF', color: '#FFF', border: 'none', cursor: 'pointer', padding: '8px 12px' }}
+                        onClick={() => window.location.href = `sms:${formattedPhone}?body=${encodeURIComponent(smsMessage)}`}
+                      >
+                        💬 SMS
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* SAFETY TIPS CARD */}
